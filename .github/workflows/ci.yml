@@ -1,0 +1,67 @@
+
+name: CI/CD Pipeline with Test Gates
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_ENV: production
+  ARTIFACT_NAME: my-app
+
+jobs:
+  pipeline:
+    name: Install → Lint → Test → Build → Package
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Install ─────────────────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ── 2. Lint (quality gate #1) ───────────────────────────────
+      - name: Lint
+        run: npm run lint
+
+      # ── 3. Test (quality gate #2) ───────────────────────────────
+      - name: Run tests
+        run: npm test
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+      # ── 4. Build ────────────────────────────────────────────────
+      - name: Build
+        run: npm run build
+
+      # ── 5. Package & publish artifact ───────────────────────────
+      - name: Package
+        run: npm run package
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}-${{ github.sha }}
+          path: '*.tgz'
+          retention-days: 30
+
+      # ── Secret usage example ────────────────────────────────────
+      - name: Show secret usage (example — remove in prod)
+        run: echo 'NPM_TOKEN is set:' ${{ secrets.NPM_TOKEN != '' }}
+        env:
+          MY_SECRET: ${{ secrets.MY_SECRET }}
